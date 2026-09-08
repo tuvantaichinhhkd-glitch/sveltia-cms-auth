@@ -99,7 +99,8 @@ Go back to the `sveltia-cms-auth` service page on the Cloudflare dashboard, sele
   - Multiple hostnames can be defined as a comma-separated list, e.g. `www.example.com, www.example.org`
   - A wildcard (`*`) can be used to match any subdomain, e.g. `*.example.com` that will match `www.example.com`, `blog.example.com`, `docs.api.example.com`, etc. (but not `example.com`)
   - To match a `www`-less naked domain and all the subdomains, use `example.com, *.example.com`
-  - The list serves two purposes: it stops other sites from using your Worker at your expense (anti-abuse), and it stops them from obtaining an access token through it (security), because the authenticator releases a token only to a page served from one of these hostnames
+  - Hostnames are matched case-insensitively, so `www.Example.com` and `www.example.com` are equivalent
+  - The list serves two purposes: it stops other sites from using your Worker at your expense (anti-abuse), and it stops them from obtaining an access token through it (security), because the authenticator releases a token only to a page served over HTTPS from one of these hostnames — a page on `localhost` is also accepted, so local development still works
 
 <!-- prettier-ignore-start -->
 > [!IMPORTANT]
