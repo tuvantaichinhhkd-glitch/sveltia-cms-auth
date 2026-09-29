@@ -70,7 +70,9 @@ const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /**
  * Convert the `ALLOWED_DOMAINS` environment variable into a list of anchored regular expression
  * sources. The sources are used both here and in the client-side script embedded in
- * {@link outputHTML}, so a hostname is matched by the exact same rules on either side.
+ * {@link outputHTML}, and are applied case-insensitively on either side, because hostnames are.
+ * The client-side check is the stricter of the two: a token is handed over only to a secure
+ * origin, which the `site_id` parameter matched here carries no information about.
  * @param {string} [allowedDomains] - Comma-separated list of hostnames, which may contain a
  * wildcard (`*`).
  * @returns {string[]} Regular expression sources. Empty if the variable is not configured.
@@ -111,19 +113,34 @@ const outputHTML = ({ provider = 'unknown', token, error, errorCode, env = {} })
         (() => {
           const trustedPatterns = ${serialize(getDomainPatterns(env.ALLOWED_DOMAINS))};
           const hasToken = ${serialize(!!token)};
+          const handshake = ${serialize(`authorizing:${provider}`)};
+          const payload = ${serialize(
+            `authorization:${provider}:${state}:${JSON.stringify(content)}`,
+          )};
 
           const isTrusted = (origin) => {
             try {
-              const { hostname } = new URL(origin);
+              const { protocol, hostname } = new URL(origin);
 
-              return trustedPatterns.some((pattern) => new RegExp(pattern).test(hostname));
+              // Anyone on the network path can rewrite a page served over plain HTTP, so an
+              // allowed hostname alone doesn’t make the page behind it safe to hand a token to.
+              // Loopback is the exception browsers themselves make, so local development still
+              // works
+              if (
+                protocol !== 'https:' &&
+                !['localhost', '127.0.0.1', '[::1]'].includes(hostname)
+              ) {
+                return false;
+              }
+
+              return trustedPatterns.some((pattern) => new RegExp(pattern, 'i').test(hostname));
             } catch {
               return false;
             }
           };
 
           window.addEventListener('message', ({ data, origin }) => {
-            if (data !== 'authorizing:${provider}') {
+            if (data !== handshake) {
               return;
             }
 
@@ -135,12 +152,9 @@ const outputHTML = ({ provider = 'unknown', token, error, errorCode, env = {} })
               return;
             }
 
-            window.opener?.postMessage(
-              'authorization:${provider}:${state}:${JSON.stringify(content)}',
-              origin
-            );
+            window.opener?.postMessage(payload, origin);
           });
-          window.opener?.postMessage('authorizing:${provider}', '*');
+          window.opener?.postMessage(handshake, '*');
         })();
       </script></body></html>
     `,
@@ -190,7 +204,7 @@ const handleAuth = async (request, env) => {
   // Check if the domain is whitelisted
   if (
     domainPatterns.length &&
-    !domainPatterns.some((pattern) => new RegExp(pattern).test(domain ?? ''))
+    !domainPatterns.some((pattern) => new RegExp(pattern, 'i').test(domain ?? ''))
   ) {
     return outputHTML({
       env,
@@ -378,7 +392,7 @@ const handleCallback = async (request, env) => {
   }
 
   try {
-    ({ access_token: token, error } = await response.json());
+    ({ access_token: token, error } = (await response.json()) ?? {});
   } catch {
     return outputHTML({
       env,
@@ -388,7 +402,30 @@ const handleCallback = async (request, env) => {
     });
   }
 
-  return outputHTML({ env, provider, token, error });
+  // The provider reported the failure itself. Keep its own message, which is more specific than
+  // anything that could be said here, but tag it like any other failed token request, so Sveltia
+  // CMS can localize what the user ends up reading
+  if (error) {
+    return outputHTML({ env, provider, error, errorCode: 'TOKEN_REQUEST_FAILED' });
+  }
+
+  // Well-formed JSON carrying neither a token nor an error: an unexpected status code, or something
+  // other than the provider — a proxy or a sign-in page in front of a self-hosted instance —
+  // answering in its place. Without this, the empty token would travel on as a successful sign-in
+  // and fail later against the Git API, where the cause is no longer visible
+  if (!token) {
+    // eslint-disable-next-line no-console
+    console.warn(`The ${provider} token endpoint responded with ${response.status} and no token.`);
+
+    return outputHTML({
+      env,
+      provider,
+      error: 'Server responded with malformed data. Please try again later.',
+      errorCode: 'MALFORMED_RESPONSE',
+    });
+  }
+
+  return outputHTML({ env, provider, token });
 };
 
 export default {
