@@ -123,6 +123,47 @@ Open `admin/config.yml` locally or remotely, and add your Worker URL from Step 1
 
 Commit the change. Once deployed, you can sign into Sveltia CMS remotely with GitHub or GitLab!
 
+## Troubleshooting
+
+When sign-in fails, the pop-up window shows the authenticator’s error message. The same message is embedded in the pop-up’s HTML together with a machine-readable `errorCode`, so you can still read it if the window closes before you can: open the Worker URL directly in a browser tab (see [Testing the Worker directly](#testing-the-worker-directly)) and view the page source with <kbd>Ctrl</kbd>+<kbd>U</kbd> (<kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>U</kbd> on macOS). No developer tools needed.
+
+### Error codes
+
+| `errorCode` | What happened | How to fix it |
+| --- | --- | --- |
+| `MISCONFIGURED_CLIENT` | The Worker has no client ID or secret for the requested provider. | Add `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (or the GitLab pair) as described in Step 3, then redeploy the Worker. Variables added in the dashboard only take effect after a deploy. |
+| `UNSUPPORTED_DOMAIN` | The site’s hostname doesn’t match any entry in `ALLOWED_DOMAINS`. | See [`ALLOWED_DOMAINS` takes bare hostnames](#allowed_domains-takes-bare-hostnames) below. This is the most common setup mistake. |
+| `UNSUPPORTED_BACKEND` | The `provider` parameter is neither `github` nor `gitlab`. | Check `backend.name` in your CMS configuration; it must be `github` or `gitlab`. |
+| `AUTH_CODE_REQUEST_FAILED` | The provider sent the user back without an authorization code. | Usually the user clicked **Cancel** on the authorization screen. If it happens every time, make sure the OAuth app’s callback URL is exactly `<YOUR_WORKER_URL>/callback`. |
+| `CSRF_DETECTED` | The `state` value returned by the provider doesn’t match the one stored in the cookie. | The cookie was lost: third-party cookies are blocked, the browser is in a strict privacy mode, or the flow was finished in a different window than it was started in. Allow cookies for the Worker’s domain and retry the whole flow in one window. |
+| `TOKEN_REQUEST_FAILED` | The provider refused to exchange the authorization code for a token. | Almost always a wrong, rotated or truncated client secret. Generate a new one and update `GITHUB_CLIENT_SECRET` / `GITLAB_CLIENT_SECRET`, then redeploy. The provider’s own message is passed through, so read it in the page source. |
+| `MALFORMED_RESPONSE` | The token endpoint answered with something that is neither a token nor an error. | Check `GITHUB_HOSTNAME` / `GITLAB_HOSTNAME`; for a self-hosted instance, a proxy or a sign-in page in front of it can answer in the provider’s place. The Worker logs the HTTP status it got — read it with `wrangler tail` or in the dashboard’s **Logs** tab. |
+
+### Testing the Worker directly
+
+You can start the flow without going through the CMS. Open this in a browser tab, replacing both placeholders with your own values:
+
+```
+https://sveltia-cms-auth.<SUBDOMAIN>.workers.dev/auth?provider=github&site_id=www.example.com
+```
+
+A working setup redirects straight to the provider’s authorization screen. Anything else renders the error page described above, where the `errorCode` tells you which row of the table applies.
+
+### `ALLOWED_DOMAINS` takes bare hostnames
+
+`ALLOWED_DOMAINS` is a list of **hostnames** — no scheme, no port, no path, no trailing slash. A value like `https://www.example.com/` is not a hostname, matches nothing, and makes every single sign-in fail with `UNSUPPORTED_DOMAIN`.
+
+| Correct                        | Wrong                            |
+| ------------------------------ | -------------------------------- |
+| `www.example.com`              | `https://www.example.com/`       |
+| `example.com, www.example.com` | `example.com/, www.example.com/` |
+| `*.example.com`                | `https://*.example.com:443`      |
+
+Two more things worth knowing when a hostname looks right but still gets rejected:
+
+- The page asking for the token must be served over HTTPS, or be on `localhost` / `127.0.0.1`. A site still on plain HTTP is refused even if its hostname is allowed.
+- Matching is case-insensitive, so the capitalization of your entries never matters.
+
 ## FAQ
 
 ### Why do I have to set this thing up in the first place?
