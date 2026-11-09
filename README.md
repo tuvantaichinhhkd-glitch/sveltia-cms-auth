@@ -131,7 +131,7 @@ When sign-in fails, the pop-up window shows the authenticator’s error message.
 
 | `errorCode` | What happened | How to fix it |
 | --- | --- | --- |
-| `MISCONFIGURED_CLIENT` | The Worker has no client ID or secret for the requested provider. | Add `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (or the GitLab pair) as described in Step 3, then redeploy the Worker. Variables added in the dashboard only take effect after a deploy. |
+| `MISCONFIGURED_CLIENT` | The Worker has no client ID or secret for the requested provider. | Add `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (or the GitLab pair) as described in Step 3, then redeploy the Worker. Variables added in the dashboard only take effect after a deploy. If they were set before and vanished after a deploy, `wrangler deploy` removed them: plain-text dashboard variables are deleted on deploy unless `keep_vars = true` is in `wrangler.toml` (this repository sets it), while encrypted secrets are always kept. |
 | `UNSUPPORTED_DOMAIN` | The site’s hostname doesn’t match any entry in `ALLOWED_DOMAINS`. | See [`ALLOWED_DOMAINS` takes bare hostnames](#allowed_domains-takes-bare-hostnames) below. This is the most common setup mistake. |
 | `UNSUPPORTED_BACKEND` | The `provider` parameter is neither `github` nor `gitlab`. | Check `backend.name` in your CMS configuration; it must be `github` or `gitlab`. |
 | `AUTH_CODE_REQUEST_FAILED` | The provider sent the user back without an authorization code. | Usually the user clicked **Cancel** on the authorization screen. If it happens every time, make sure the OAuth app’s callback URL is exactly `<YOUR_WORKER_URL>/callback`. |

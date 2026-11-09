@@ -1,3 +1,6 @@
 name = "sveltia-cms-auth"
 main = "src/index.js"
 compatibility_date = "2023-03-24"
+# The client ID and ALLOWED_DOMAINS are set in the Cloudflare dashboard, not here. Without this,
+# every `wrangler deploy`, including each Workers Builds run, deletes them and sign-in stops working
+keep_vars = true

@@ -16,6 +16,7 @@ ignorePaths:
   - pnpm-lock.yaml
   # Vietnamese-language operations guide; not covered by the English dictionaries
   - docs/vietnamese-admin-guide.md
+  - docs/vietnamese-editor-guide.md
 words:
   - cooldown
   - CVEs
