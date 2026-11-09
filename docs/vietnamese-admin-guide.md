@@ -13,12 +13,14 @@ Phần kỹ thuật bằng tiếng Anh nằm ở [README.md](../README.md).
 | Địa chỉ CMS | `https://chigaitaichinh.com/admin/` |
 | Worker xác thực (OAuth) | `https://sveltia-cms-auth.tuvantaichinhhkd.workers.dev` |
 | `base_url` trong `admin/config.yml` | chính là địa chỉ Worker ở trên |
-| Biến `ALLOWED_DOMAINS` trên Cloudflare | `chigaitaichinh.com, www.chigaitaichinh.com` |
-| Biến `GITHUB_CLIENT_ID` | Client ID của GitHub OAuth App |
-| Biến `GITHUB_CLIENT_SECRET` | Client Secret của GitHub OAuth App — **phải bấm Encrypt** để lưu dạng mã hoá |
+| Biến `ALLOWED_DOMAINS` trên Cloudflare | `chigaitaichinh.com, www.chigaitaichinh.com` — loại **Secret** |
+| Biến `GITHUB_CLIENT_ID` | Client ID của GitHub OAuth App — loại **Secret** |
+| Biến `GITHUB_CLIENT_SECRET` | Client Secret của GitHub OAuth App — loại **Secret** (mã hoá) |
 | Nơi chỉnh các biến này | Cloudflare dashboard → Workers → `sveltia-cms-auth` → **Settings** → **Variables and Secrets** |
 
 > **Lưu ý:** sau khi thêm hoặc sửa bất kỳ biến nào ở Cloudflare, phải **Deploy** lại Worker. Chỉ bấm Save là chưa có hiệu lực.
+
+> **Vì sao cả 3 biến đều chọn loại Secret?** Mỗi lần Cloudflare deploy lại từ GitHub, biến loại **Text** (chữ thường) có thể bị xoá, còn biến loại **Secret** thì luôn được giữ. Ngày 23/10/2026 đã xảy ra đúng chuyện này: `GITHUB_CLIENT_ID` và `ALLOWED_DOMAINS` bị xoá sau một lần deploy, CMS báo lỗi "ID ứng dụng khách hoặc bí mật của ứng dụng OAuth chưa được định cấu hình". Repo đã thêm dòng `keep_vars = true` vào `wrangler.toml` để chặn việc xoá này; lưu dạng Secret là lớp bảo vệ thứ hai.
 
 ---
 
@@ -84,6 +86,8 @@ Vào được như bình thường. Lý do máy hiện tại "vào thẳng" là 
 4. Họ nhận email mời, bấm chấp nhận
 5. Từ đó họ tự vào `https://chigaitaichinh.com/admin/` và bấm **Sign in with GitHub** bằng tài khoản của chính họ
 
+Gửi cho người dùng mới file [Hướng dẫn cho người biên tập nội dung](./vietnamese-editor-guide.md) — viết cho người không rành kỹ thuật, từng bước từ tạo tài khoản GitHub tới đăng nhập.
+
 Ưu điểm: mỗi thay đổi nội dung được ghi nhận đúng tên người làm, và khi họ không còn phụ trách thì chỉ cần xoá khỏi danh sách Collaborators — không phải đổi mật khẩu của ai.
 
 ---
@@ -107,7 +111,7 @@ Pop-up đăng nhập có thể tắt rất nhanh khiến không đọc được 
 
 | Mã lỗi | Nghĩa là gì | Cách xử lý |
 | --- | --- | --- |
-| `MISCONFIGURED_CLIENT` | Worker chưa có Client ID / Client Secret của GitHub | Vào Cloudflare → `sveltia-cms-auth` → Settings → Variables and Secrets, thêm `GITHUB_CLIENT_ID` và `GITHUB_CLIENT_SECRET` (bấm Encrypt cho secret), rồi **Deploy** lại |
+| `MISCONFIGURED_CLIENT` | Worker chưa có Client ID / Client Secret của GitHub | Vào Cloudflare → `sveltia-cms-auth` → Settings → Variables and Secrets, thêm `GITHUB_CLIENT_ID` và `GITHUB_CLIENT_SECRET` (chọn loại **Secret**), rồi **Deploy** lại. Nếu trước đó đã nhập mà tự nhiên mất sau một lần deploy: xem lưu ý "Vì sao cả 3 biến đều chọn loại Secret?" ở mục 1 |
 | `UNSUPPORTED_DOMAIN` | Tên miền của website không khớp danh sách `ALLOWED_DOMAINS` | Sửa `ALLOWED_DOMAINS` thành đúng `chigaitaichinh.com, www.chigaitaichinh.com` — **chỉ tên miền trần**, không có `https://`, không có dấu `/` ở cuối. Xem mục 6 bên dưới |
 | `UNSUPPORTED_BACKEND` | Khai báo `backend.name` trong `admin/config.yml` sai | Phải là `github` (hoặc `gitlab`), không viết hoa, không viết tắt khác |
 | `AUTH_CODE_REQUEST_FAILED` | GitHub trả về mà không kèm mã xác thực | Thường do bấm **Cancel** ở màn hình Authorize. Nếu lần nào cũng lỗi: kiểm tra Authorization callback URL của GitHub OAuth App phải đúng `https://sveltia-cms-auth.tuvantaichinhhkd.workers.dev/callback` |
@@ -146,6 +150,7 @@ Ghi hoa hay thường không quan trọng — `Chigaitaichinh.com` và `chigaita
 - Không lưu `GITHUB_CLIENT_SECRET` dạng chữ thường (plain text) trên Cloudflare — luôn bấm **Encrypt**
 - Không dán Client Secret hay Personal Access Token vào file trong repository, vào chat, hay vào email
 - Không để trống `ALLOWED_DOMAINS` — để trống thì website khác cũng dùng được Worker này và có thể lấy được token
+- Không xoá dòng `keep_vars = true` trong `wrangler.toml` — xoá đi thì lần deploy sau sẽ xoá luôn các biến trên Cloudflare
 - Không xoá GitHub OAuth App đang dùng; nếu nghi secret bị lộ thì tạo secret mới rồi cập nhật lên Cloudflare
 
 ---
